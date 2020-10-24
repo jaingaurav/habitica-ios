@@ -187,8 +187,10 @@ class HabiticaAppDelegate: NSObject, MessagingDelegate, UNUserNotificationCenter
             defaults.set(true, forKey: "dailyReminderActive")
             defaults.set(newDate, forKey: "dailyReminderTime")
             defaults.set(true, forKey: "appBadgeActive")
-            UIApplication.shared.cancelAllLocalNotifications()
-            
+
+            let center = UNUserNotificationCenter.current()
+            center.removeAllPendingNotificationRequests()
+
             rescheduleDailyReminder()
         }
     }
@@ -197,21 +199,43 @@ class HabiticaAppDelegate: NSObject, MessagingDelegate, UNUserNotificationCenter
     func rescheduleDailyReminder() {
         let defaults = UserDefaults.standard
         
-        let sharedApplication = UIApplication.shared
-        for localNotification in sharedApplication.scheduledLocalNotifications ?? [] {
-            if (localNotification.userInfo?["id"] as? String ?? "").isEmpty || (localNotification.userInfo?["isDailyNotification"] as? Bool) == true {
-                sharedApplication.cancelLocalNotification(localNotification)
+        let center = UNUserNotificationCenter.current()
+        print("Removing old")
+        center.getPendingNotificationRequests(completionHandler: { localNotifications in
+            for localNotification in localNotifications {
+                print(localNotification.identifier)
+                if (localNotification.content.userInfo["id"] as? String ?? "").isEmpty || (localNotification.content.userInfo["isDailyNotification"] as? Bool) == true {
+                    print("removing")
+                    print((localNotification.trigger as? UNCalendarNotificationTrigger ?? nil)?.dateComponents)
+                    center.removePendingNotificationRequests(withIdentifiers: [localNotification.identifier])
+                }
             }
-        }
+        })
+        print("Removed old")
         
         if defaults.bool(forKey: "dailyReminderActive"), let date = defaults.value(forKey: "dailyReminderTime") as? Date {
-            let localNotification = UILocalNotification()
-            localNotification.fireDate = date
-            localNotification.repeatInterval = .day
-            localNotification.alertBody = L10n.rememberCheckOffDailies
-            localNotification.soundName = UILocalNotificationDefaultSoundName
-            localNotification.timeZone = NSTimeZone.default
-            UIApplication.shared.scheduleLocalNotification(localNotification)
+            print("Adding new")
+            let content = UNMutableNotificationContent()
+            content.title = L10n.rememberCheckOffDailies
+            print(date)
+            //localNotification.soundName = UILocalNotificationDefaultSoundName
+            //var dateComponents = DateComponents()
+            //dateComponents.hour = date.
+            let triggerInput = Calendar.current.dateComponents([.hour, .minute], from: date)
+            print(triggerInput)
+            let trigger = UNCalendarNotificationTrigger.init(dateMatching: triggerInput, repeats: true)
+            print(trigger.dateComponents)
+
+            let request = UNNotificationRequest(identifier: "someUniqueID", content: content, trigger: trigger)
+            let center = UNUserNotificationCenter.current()
+            center.add(request, withCompletionHandler: { error in
+                if error != nil {
+                    //print(error)
+                    //completion(false)
+                } else {
+                    //completion(true)
+                }
+            })
         }
     }
 
